@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"os"
 	"time"
 	"vk_friends/logger"
 )
@@ -89,6 +90,8 @@ func me(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Ferror(err)
 	}
+
+	startFriendList(&response)
 }
 
 type ResponseFriends struct {
@@ -101,7 +104,48 @@ type Friends struct {
 }
 
 type Person struct {
-	Id uint32 `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName string `json:"last_name"`
+	Id 			uint32 	`json:"id"`
+	FirstName 	string 	`json:"first_name"`
+	LastName 	string 	`json:"last_name"`
+}
+
+
+func startFriendList(r *ResponseFriends) {
+	filename := "data.txt"
+	data := Friends{}
+
+
+	byte, err := os.ReadFile(filename)
+	if os.IsNotExist(err) {
+		_, fileErr := os.Create(filename)
+		if fileErr != nil {
+			logger.Error.Fatalln(err)
+		}
+		logger.Info.Println("File", filename, "created")
+		byte, err = os.ReadFile(filename)
+		if err != nil {
+			logger.Error.Fatalln(err)
+		}
+	} else if err != nil {
+		logger.Error.Fatalln(err)
+	}
+
+
+	if len(byte) != 0 {
+		jErr := json.Unmarshal(byte, &data)
+		if jErr != nil {
+			logger.Error.Fatalln("Can't read correct data from file", filename)
+		}
+	} else {
+		file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+		if err != nil {
+			logger.Error.Fatalln(err)
+		}
+		defer file.Close()
+		byteData, _ := json.MarshalIndent(r, "", "")
+		fmt.Println(string(byteData))
+		count, err := file.Write(byteData)
+		logger.Info.Println(count, err)
+	}
+
 }
