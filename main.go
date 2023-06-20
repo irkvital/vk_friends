@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"time"
 	"vk_friends/logger"
 )
@@ -15,7 +17,8 @@ var (
 	tmpl         = template.Must(template.ParseGlob("templates/*.html"))
 	clientID     = "51678013"
 	clientSecret = "CCa6iiJfty8WVDEPtapJ"
-	redirectURI  = "http://localhost:8080/me"
+	localhost    = "http://localhost:8080"
+	redirectURI  = localhost + "/me"
 	state        = "12345"
 )
 
@@ -23,6 +26,7 @@ var (
 func main() {
 	http.HandleFunc("/", index)
 	http.HandleFunc("/me", me)
+	openUrl(localhost)
 	logger.Info.Println("-> Server has started")
 	logger.Info.Println(http.ListenAndServe(":8080", nil))
 }
@@ -40,11 +44,13 @@ func me(w http.ResponseWriter, r *http.Request) {
 
 	stateTemp := r.URL.Query().Get("state")
 	if stateTemp != state {
-		logger.Error.Fatalln("state query param do not match original one, got=", stateTemp)
+		logger.Error.Println("state query param do not match original one, got=", stateTemp)
+		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		logger.Error.Fatalln("code query param is not provided")
+		logger.Error.Println("code query param is not provided")
+		return
 	}
 
 	// Получение токена
@@ -148,4 +154,21 @@ func startFriendList(r *ResponseFriends) {
 		logger.Info.Println(count, err)
 	}
 
+}
+
+func openUrl(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+
+	if err != nil {
+		logger.Error.Println(err)
+	}
 }
