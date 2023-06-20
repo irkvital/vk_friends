@@ -100,6 +100,11 @@ func me(w http.ResponseWriter, r *http.Request) {
 	startFriendList(&response)
 }
 
+type ChangeFriends struct {
+	Persons []Person
+	Changes []Change
+}
+
 type ResponseFriends struct {
 	Friends Friends `json:"response"`
 }
@@ -115,19 +120,22 @@ type Person struct {
 	LastName 	string 	`json:"last_name"`
 }
 
+type Change struct {
+	Person 	Person
+	Data 	string
+	Status 	bool
+}
+
+
 
 func startFriendList(r *ResponseFriends) {
 	filename := "data.txt"
-	data := Friends{}
+	data := ChangeFriends{}
 
 
 	byte, err := os.ReadFile(filename)
 	if os.IsNotExist(err) {
-		_, fileErr := os.Create(filename)
-		if fileErr != nil {
-			logger.Error.Fatalln(err)
-		}
-		logger.Info.Println("File", filename, "created")
+		fileCreate(filename)
 		byte, err = os.ReadFile(filename)
 		if err != nil {
 			logger.Error.Fatalln(err)
@@ -142,18 +150,34 @@ func startFriendList(r *ResponseFriends) {
 		if jErr != nil {
 			logger.Error.Fatalln("Can't read correct data from file", filename)
 		}
+		logger.Debug.Println(data)
 	} else {
-		file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
-		if err != nil {
-			logger.Error.Fatalln(err)
-		}
-		defer file.Close()
-		byteData, _ := json.MarshalIndent(r, "", "")
-		fmt.Println(string(byteData))
-		count, err := file.Write(byteData)
-		logger.Info.Println(count, err)
+		firstWriteFile(filename, r)
 	}
 
+}
+
+func fileCreate(filename string) {
+	_, fileErr := os.Create(filename)
+	if fileErr != nil {
+		logger.Error.Fatalln(fileErr)
+	}
+	logger.Info.Println("File", filename, "created")
+}
+
+func firstWriteFile(filename string, r *ResponseFriends) {
+	friendList := ChangeFriends{
+		Persons: r.Friends.Persons,
+	}
+	// Запись первоначальных данных
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		logger.Error.Fatalln(err)
+	}
+	defer file.Close()
+	byteData, _ := json.MarshalIndent(friendList, "", "")
+	count, _ := file.Write(byteData)
+	logger.Info.Println(count, "bytes was written to file", filename)
 }
 
 func openUrl(url string) {
