@@ -92,12 +92,13 @@ func me(w http.ResponseWriter, r *http.Request) {
 		logger.Ferror(jErr)
 	}
 
-	err = tmpl.ExecuteTemplate(w, "me.html", response.Friends.Persons)
+	data := startFriendList(&response)
+
+	err = tmpl.ExecuteTemplate(w, "me.html", data.Changes)
 	if err != nil {
 		logger.Ferror(err)
 	}
 
-	startFriendList(&response)
 }
 
 type ChangeFriends struct {
@@ -123,12 +124,12 @@ type Person struct {
 type Change struct {
 	Person 	Person
 	Data 	string
-	Status 	bool
+	Status 	string
 }
 
 
 
-func startFriendList(r *ResponseFriends) {
+func startFriendList(r *ResponseFriends) ChangeFriends {
 	filename := "data.txt"
 	data := ChangeFriends{}
 
@@ -150,12 +151,43 @@ func startFriendList(r *ResponseFriends) {
 		if jErr != nil {
 			logger.Error.Fatalln("Can't read correct data from file", filename)
 		}
-		logger.Debug.Println(data)
+		// logger.Debug.Println(data)
+		// Сравнение данных
+		compareData(r, &data)
 	} else {
-		firstWriteFile(filename, r)
+		// Если файл с данными пустой, записывается текущий список друзей
+		data.Persons = r.Friends.Persons
 	}
-
+	WriteFile(filename, &data)
+	return data
 }
+
+func compareData(r *ResponseFriends, f *ChangeFriends) {
+	// Карта с id текущих друзей
+	respData := make(map[uint32]Change)
+	for _, val := range r.Friends.Persons {
+		respData[val.Id] = Change{val, "", "added"}
+	}
+	// Сравнение старого списка друзей с новым
+	for i := range f.Persons {
+		key := f.Persons[i].Id
+		_ , found := respData[key]
+		if found {
+			delete(respData, key)
+		} else {
+			respData[key] = Change{f.Persons[i], "", "deleted"}
+		}
+	}
+	// Добавление изменений
+	for _, val := range respData {
+		val.Data = time.Now().Format("01.02.2006")
+		f.Changes = append(f.Changes, val)
+	}
+	// Перезаписывание списка друзей
+	f.Persons = r.Friends.Persons
+}
+
+
 
 func fileCreate(filename string) {
 	_, fileErr := os.Create(filename)
@@ -165,17 +197,14 @@ func fileCreate(filename string) {
 	logger.Info.Println("File", filename, "created")
 }
 
-func firstWriteFile(filename string, r *ResponseFriends) {
-	friendList := ChangeFriends{
-		Persons: r.Friends.Persons,
-	}
-	// Запись первоначальных данных
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, os.ModePerm)
+func WriteFile(filename string, r *ChangeFriends) {
+	// Запись данных
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		logger.Error.Fatalln(err)
 	}
 	defer file.Close()
-	byteData, _ := json.MarshalIndent(friendList, "", "")
+	byteData, _ := json.MarshalIndent(r, "", "")
 	count, _ := file.Write(byteData)
 	logger.Info.Println(count, "bytes was written to file", filename)
 }
